@@ -8,6 +8,6 @@
   "dependencies": {
     "cors": "latest",
     "express": "latest",
-    "yt-dlp-exec": "latest"
+    "play-dl": "latest"
   }
 }
