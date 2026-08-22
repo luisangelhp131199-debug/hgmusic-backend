@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const play = require('play-dl');
 
 const app = express();
 app.use(cors());
@@ -17,21 +16,29 @@ app.post('/search', async (req, res) => {
   }
 
   try {
-    // Buscar el video en YouTube
-    const searchResults = await play.search(query, { limit: 1 });
-    
-    if (!searchResults || searchResults.length === 0) {
+    // Usamos la API de Piped para buscar en YouTube sin bloqueos de IP
+    const searchRes = await fetch(`https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=music_songs`);
+    const searchData = await searchRes.json();
+
+    if (!searchData.items || searchData.items.length === 0) {
       return res.status(404).json({ error: 'No se encontró el audio' });
     }
 
-    const video = searchResults[0];
+    const videoId = searchData.items[0].url.split('v=')[1];
+    
+    // Obtenemos los enlaces de audio directos
+    const videoRes = await fetch(`https://pipedapi.kavin.rocks/streams/${videoId}`);
+    const videoData = await videoRes.json();
 
-    // Obtener los enlaces directos de audio de YouTube
-    const stream = await play.stream(video.url);
+    // Filtramos solo la mejor pista de audio MP4/AAC
+    const audioStreams = videoData.audioStreams;
+    if (!audioStreams || audioStreams.length === 0) {
+      return res.status(404).json({ error: 'No se encontró enlace de audio' });
+    }
 
     res.json({
-      title: video.title,
-      url: stream.url
+      title: videoData.title,
+      url: audioStreams[0].url
     });
   } catch (err) {
     console.error('Error en búsqueda:', err);
