@@ -1,17 +1,15 @@
 const express = require('express');
 const cors = require('cors');
-const ytdl = require('yt-dlp-exec');
+const play = require('play-dl');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Ruta para probar que el servidor responde
 app.get('/', (req, res) => {
   res.send('Servidor activo');
 });
 
-// Ruta de búsqueda de música
 app.post('/search', async (req, res) => {
   const { query } = req.body;
   if (!query) {
@@ -19,23 +17,22 @@ app.post('/search', async (req, res) => {
   }
 
   try {
-    const output = await ytdl(`ytsearch1:${query}`, {
-      dumpSingleJson: true,
-      noWarnings: true,
-      noCallHome: true,
-      preferFreeFormats: true,
-      youtubeSkipDashManifest: true,
-      format: 'bestaudio/best'
-    });
-
-    if (output && output.url) {
-      res.json({
-        title: output.title,
-        url: output.url
-      });
-    } else {
-      res.status(404).json({ error: 'No se encontró audio' });
+    // Buscar el video en YouTube
+    const searchResults = await play.search(query, { limit: 1 });
+    
+    if (!searchResults || searchResults.length === 0) {
+      return res.status(404).json({ error: 'No se encontró el audio' });
     }
+
+    const video = searchResults[0];
+
+    // Obtener los enlaces directos de audio de YouTube
+    const stream = await play.stream(video.url);
+
+    res.json({
+      title: video.title,
+      url: stream.url
+    });
   } catch (err) {
     console.error('Error en búsqueda:', err);
     res.status(500).json({ error: 'Error procesando la solicitud' });
