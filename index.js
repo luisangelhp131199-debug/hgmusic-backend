@@ -1,52 +1,58 @@
 const express = require('express');
 const cors = require('cors');
+const fetch = require('node-fetch');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get('/', (req, res) => {
-  res.send('Servidor activo');
-});
+// Endpoint para parsear listas M3U
+app.get('/parse-m3u', async (req, res) => {
+  const m3uUrl = req.query.url;
 
-app.post('/search', async (req, res) => {
-  const { query } = req.body;
-  if (!query) {
-    return res.status(400).json({ error: 'Falta la búsqueda' });
+  if (!m3uUrl) {
+    return res.status(400).json({ error: 'Falta la URL de la lista M3U' });
   }
 
   try {
-    // Usamos la API de Piped para buscar en YouTube sin bloqueos de IP
-    const searchRes = await fetch(`https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=music_songs`);
-    const searchData = await searchRes.json();
+    const response = await fetch(m3uUrl);
+    const data = await response.text();
 
-    if (!searchData.items || searchData.items.length === 0) {
-      return res.status(404).json({ error: 'No se encontró el audio' });
-    }
+    const lines = data.split('\n');
+    const channels = [];
+    let currentChannel = {};
 
-    const videoId = searchData.items[0].url.split('v=')[1];
-    
-    // Obtenemos los enlaces de audio directos
-    const videoRes = await fetch(`https://pipedapi.kavin.rocks/streams/${videoId}`);
-    const videoData = await videoRes.json();
+    lines.forEach(line => {
+      line = line.trim();
 
-    // Filtramos solo la mejor pista de audio MP4/AAC
-    const audioStreams = videoData.audioStreams;
-    if (!audioStreams || audioStreams.length === 0) {
-      return res.status(404).json({ error: 'No se encontró enlace de audio' });
-    }
+      if (line.startsWith('#EXTINF:')) {
+        // Extraer logo
+        const logoMatch = line.match(/tvg-logo="([^"]+)"/);
+        const logo = logoMatch ? logoMatch[1] : '';
 
-    res.json({
-      title: videoData.title,
-      url: audioStreams[0].url
+        // Extraer categoría/grupo
+        const groupMatch = line.match(/group-title="([^"]+)"/);
+        const group = groupMatch ? groupMatch[1] : 'General';
+
+        // Extraer nombre del canal
+        const nameParts = line.split(',');
+        const name = nameParts[nameParts.length - 1].trim();
+
+        currentChannel = { name, logo, group };
+      } else if (line.startsWith('http://') || line.startsWith('https://')) {
+        currentChannel.url = line;
+        if (currentChannel.name) {
+          channels.push(currentChannel);
+        }
+        currentChannel = {};
+      }
     });
-  } catch (err) {
-    console.error('Error en búsqueda:', err);
-    res.status(500).json({ error: 'Error procesando la solicitud' });
+
+    res.json({ total: channels.length, channels });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al procesar la lista M3U' });
   }
 });
 
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en puerto ${PORT}`);
-});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Servidor IPTV corriendo en puerto ${PORT}`));
