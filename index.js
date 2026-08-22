@@ -1,12 +1,11 @@
 const express = require('express');
 const cors = require('cors');
-const fetch = require('node-fetch');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Endpoint para parsear listas M3U
+// Endpoint para procesar listas M3U
 app.get('/parse-m3u', async (req, res) => {
   const m3uUrl = req.query.url;
 
@@ -15,6 +14,7 @@ app.get('/parse-m3u', async (req, res) => {
   }
 
   try {
+    // Usamos fetch nativo de Node.js (sin requerir paquetes extra)
     const response = await fetch(m3uUrl);
     const data = await response.text();
 
@@ -26,15 +26,12 @@ app.get('/parse-m3u', async (req, res) => {
       line = line.trim();
 
       if (line.startsWith('#EXTINF:')) {
-        // Extraer logo
         const logoMatch = line.match(/tvg-logo="([^"]+)"/);
         const logo = logoMatch ? logoMatch[1] : '';
 
-        // Extraer categoría/grupo
         const groupMatch = line.match(/group-title="([^"]+)"/);
         const group = groupMatch ? groupMatch[1] : 'General';
 
-        // Extraer nombre del canal
         const nameParts = line.split(',');
         const name = nameParts[nameParts.length - 1].trim();
 
